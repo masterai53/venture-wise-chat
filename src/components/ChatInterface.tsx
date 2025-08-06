@@ -3,9 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Bot, User, Lightbulb, TrendingUp } from "lucide-react";
+import { Send, Bot, User, Lightbulb, TrendingUp, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import AuthDialog from "@/components/AuthDialog";
+import UserMenu from "@/components/UserMenu";
+import ChatHistory from "@/components/ChatHistory";
 
 interface Message {
   id: string;
@@ -40,8 +44,30 @@ export default function ChatInterface() {
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [showChatHistory, setShowChatHistory] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Check for existing user session
+  useEffect(() => {
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user || null);
+    };
+
+    getSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user || null);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const scrollToBottom = () => {
     if (scrollAreaRef.current) {
@@ -157,13 +183,33 @@ export default function ChatInterface() {
       {/* Header */}
       <div className="border-b bg-card shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-hero rounded-lg">
-              <TrendingUp className="h-6 w-6 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-gradient-hero rounded-lg">
+                <TrendingUp className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-foreground">VentureWise</h1>
+                <p className="text-sm text-muted-foreground">Your AI Business Advisor</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">VentureWise</h1>
-              <p className="text-sm text-muted-foreground">Your AI Business Advisor</p>
+            
+            <div className="flex items-center space-x-2">
+              {user ? (
+                <UserMenu 
+                  user={user} 
+                  onHistoryClick={() => setShowChatHistory(true)} 
+                />
+              ) : (
+                <Button
+                  onClick={() => setShowAuthDialog(true)}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <LogIn className="h-4 w-4" />
+                  Sign In
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -273,6 +319,19 @@ export default function ChatInterface() {
           </p>
         </div>
       </div>
+
+      {/* Auth Dialog */}
+      <AuthDialog 
+        open={showAuthDialog} 
+        onOpenChange={setShowAuthDialog} 
+      />
+
+      {/* Chat History */}
+      <ChatHistory
+        open={showChatHistory}
+        onOpenChange={setShowChatHistory}
+        userId={user?.id}
+      />
     </div>
   );
 }
